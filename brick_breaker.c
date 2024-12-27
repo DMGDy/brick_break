@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+   */
 
 #include "raylib.h"
 #include "raymath.h"
@@ -41,12 +41,12 @@ const int rect_w = radius*16;
 //------------------------------------------------------------------------------------
 // Program main entry point
 //------------------------------------------------------------------------------------
-int 
+  int 
 main(void)
 {
   // Initialization
   //--------------------------------------------------------------------------------------
-  size_t brick_count_x = 50;
+  size_t brick_count_x = 25;
   size_t brick_count_y = (int)(screen_h * .65)/50;
 
 
@@ -84,14 +84,14 @@ main(void)
 
       *brick = (Brick){
         .brick = {
-          .x = brick_side_len *dx,
+          .x = (brick_side_len*2) *dx,
           .y = brick_side_len *dy,
-          .width = brick_side_len,
+          .width = brick_side_len * 2,
           .height = brick_side_len
         },
 
-        .should_exist = 1,
-        .color = (Color) {rand()%127,rand()%127,rand()%127,255}
+          .should_exist = 1,
+          .color = (Color) {rand()%127,rand()%127,rand()%127,255}
 
       };
 
@@ -99,19 +99,9 @@ main(void)
     }
   }
 
-  Brick brick = {
-    .brick = {
-      .x = (float)screen_w/2,
-      .y = 0,
-      .width = (int)(screen_w/50),
-      .height = (int)(screen_w/50)
-    },
-
-    .should_exist = 1,
-    .color = (Color) {rand()%127,rand()%127,rand()%127,255}
-  };
-
   float rect_speed = Vector2Length(ball_vel)*0.90;
+
+  Vector2 prev;
 
   SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
                                   //--------------------------------------------------------------------------------------
@@ -150,19 +140,52 @@ main(void)
       }
     }
 
+    int hit = 0;
+    int bounce = 1;
+    for(size_t dy = 0;dy < brick_count_y; ++dy) {
+      for(size_t dx = 0; dx < brick_count_x; ++dx) {
+        Brick* brick = bricks[dy][dx];
+        if(CheckCollisionCircleRec(ball_pos,radius,brick->brick)&&brick->should_exist) {
+          brick->should_exist = 0;
+          float left = brick->brick.x;
+          float right = left + brick->brick.width;
+          float top = brick->brick.y;
+          float bottom = top + brick->brick.height;
+
+          if(prev.x <= left) {
+            ball_vel.x *= -1;
+            ball_pos.x = left - radius;
+          }
+          else if(prev.x >= right) {
+            ball_vel.x *= -1;
+            ball_pos.x = right + radius;
+          }
+          if(prev.y <= top) {
+            ball_vel.y *= -1;
+            ball_pos.y = top - radius;
+          }
+          else if(prev.y >= bottom) {
+            ball_vel.y *= -1;
+            ball_pos.y = bottom + radius;
+          }
+          hit = 1;
+        }
+        if(hit)
+          break;
+      }
+      if(hit)
+        break;
+    }
+
     // Draw
     //----------------------------------------------------------------------------------
     BeginDrawing();
     ClearBackground(BG);
 
-    DrawRectangleRec(rec,WHITE);
-    if(brick.should_exist) {
-      DrawRectangleRec(brick.brick,brick.color);
-    }
     DrawCircleV(ball_pos,radius,BALL_RED);
-    ball_pos = Vector2Add(ball_pos,ball_vel);
+    DrawRectangleRec(rec,WHITE);
 
-    
+
     for(size_t dy = 0;dy<brick_count_y;++dy) {
       for(size_t dx = 0;dx < brick_count_x;++dx) {
         Brick* brick = bricks[dy][dx];
@@ -171,7 +194,7 @@ main(void)
         }
       }
     }
-    
+
 
     EndDrawing();
 
@@ -183,29 +206,8 @@ main(void)
       ball_vel.y *= -1;
     }
 
-    
-    for(size_t dy = 0;dy < brick_count_y;++dy) {
-      int hit = 0;
-      for(size_t dx = 0; dx < brick_count_x; ++dx) {
-        Brick* brick = bricks[dy][dx];
-        if(CheckCollisionCircleRec(ball_pos,radius,brick->brick)&&brick->should_exist) {
-          Vector2 closest = {
-            .x = fmax(brick->brick.x, fmin(ball_pos.x, brick->brick.x + brick->brick.width)),
-            .y = fmax(brick->brick.y, fmin(ball_pos.y, brick->brick.y + brick->brick.height))
-          };
 
-          brick->should_exist = 0;
-          // ball hit horizontal side
-          if(closest.x == brick->brick.x || closest.x == brick->brick.x + brick->brick.width) {
-            ball_vel.x *= -1;
-          }else { // else vertical side
-            ball_vel.y *= -1;
-          }
-          hit = 1;
-        }
-      }
-    }
-    
+
 
     if(CheckCollisionCircleRec(ball_pos,radius,rec)) {
       float vel_mag = Vector2Length(ball_vel);
@@ -218,13 +220,15 @@ main(void)
 
 
     }
+    prev = ball_pos;
+    ball_pos = Vector2Add(ball_pos,ball_vel);
 
     /*
-    if(CheckCollisionCircleRec(ball_pos,radius,brick.brick)) {
-      brick.should_exist = 0;
-      ball_vel.y *= -1;
-    }
-    */
+       if(CheckCollisionCircleRec(ball_pos,radius,brick.brick)) {
+       brick.should_exist = 0;
+       ball_vel.y *= -1;
+       }
+       */
 
 
     //----------------------------------------------------------------------------------
