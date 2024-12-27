@@ -29,6 +29,7 @@ typedef struct {
   Rectangle brick;
   int should_exist;
   Color color;
+  size_t hit;
 }Brick;
 
 const int screen_w = 1200;
@@ -83,6 +84,7 @@ main(void)
       Brick* brick = malloc(sizeof(Brick));
 
       *brick = (Brick){
+
         .brick = {
           .x = (brick_side_len*2) *dx,
           .y = brick_side_len *dy,
@@ -90,8 +92,9 @@ main(void)
           .height = brick_side_len
         },
 
-          .should_exist = 1,
-          .color = (Color) {rand()%127,rand()%127,rand()%127,255}
+        .should_exist = 1,
+        .color = (Color) {rand()%127,rand()%127,rand()%127,255},
+        .hit = 10
 
       };
 
@@ -146,7 +149,9 @@ main(void)
       for(size_t dx = 0; dx < brick_count_x; ++dx) {
         Brick* brick = bricks[dy][dx];
         if(CheckCollisionCircleRec(ball_pos,radius,brick->brick)&&brick->should_exist) {
-          brick->should_exist = 0;
+          --brick->hit;
+          if(brick->hit == 0)
+            brick->should_exist = 0;
           float left = brick->brick.x;
           float right = left + brick->brick.width;
           float top = brick->brick.y;
@@ -177,27 +182,6 @@ main(void)
         break;
     }
 
-    // Draw
-    //----------------------------------------------------------------------------------
-    BeginDrawing();
-    ClearBackground(BG);
-
-    DrawCircleV(ball_pos,radius,BALL_RED);
-    DrawRectangleRec(rec,WHITE);
-
-
-    for(size_t dy = 0;dy<brick_count_y;++dy) {
-      for(size_t dx = 0;dx < brick_count_x;++dx) {
-        Brick* brick = bricks[dy][dx];
-        if(brick->should_exist) {
-          DrawRectangleRec(brick->brick,brick->color);
-        }
-      }
-    }
-
-
-    EndDrawing();
-
     if(ball_pos.x >= screen_w - radius || ball_pos.x <= radius) {
       ball_vel.x *=-1;
     }
@@ -220,6 +204,33 @@ main(void)
 
 
     }
+
+
+    // Draw
+    //----------------------------------------------------------------------------------
+    BeginDrawing();
+    ClearBackground(BG);
+
+    DrawCircleV(ball_pos,radius,BALL_RED);
+    DrawRectangleRec(rec,WHITE);
+
+
+    for(size_t dy = 0;dy<brick_count_y;++dy) {
+      for(size_t dx = 0;dx < brick_count_x;++dx) {
+        Brick* brick = bricks[dy][dx];
+        if(brick->should_exist) {
+          DrawRectangleRec(brick->brick,brick->color);
+          DrawText(TextFormat("%d",brick->hit),
+              brick->brick.x + (brick->brick.width/4),
+              brick->brick.y + (brick->brick.height/8),
+              20,WHITE);
+        }
+      }
+    }
+
+
+    EndDrawing();
+
     prev = ball_pos;
     ball_pos = Vector2Add(ball_pos,ball_vel);
 
