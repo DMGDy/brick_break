@@ -15,10 +15,11 @@
 
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-   */
+*/
 
 #include "raylib.h"
 #include "raymath.h"
+#include <math.h>
 #include <time.h>
 #include <stdlib.h>
 
@@ -32,6 +33,8 @@ typedef struct {
   size_t hit;
 }Brick;
 
+typedef enum {START,GAME,PAUSE,LOSE,WIN}GameState;
+
 const int screen_w = 1200;
 const int screen_h = 800;
 
@@ -39,22 +42,20 @@ const int radius = 10;
 const int rect_w = radius*16;
 
 
-//------------------------------------------------------------------------------------
-// Program main entry point
-//------------------------------------------------------------------------------------
-  int 
+int
 main(void)
 {
-  // Initialization
-  //--------------------------------------------------------------------------------------
-  size_t brick_count_x = 25;
-  size_t brick_count_y = (int)(screen_h * .65)/50;
-
-
+  //
+  InitWindow(screen_w,screen_h,"Epic Game");
   srand(time(NULL));
 
+
+  // brick size horizontially bound by max 50 and vertically by screen height
+  size_t brick_count_x = 50;
+  size_t brick_count_y = (int)(screen_h )/50;
+
+
   //Vector2 scale = GetWindowScaleDPI();
-  InitWindow(screen_w,screen_h,"Sample Window");
 
   Vector2 ball_vel = {
     .x = 10,
@@ -93,7 +94,7 @@ main(void)
         },
 
         .should_exist = 1,
-        .color = (Color) {rand()%127,rand()%127,rand()%127,255},
+        .color = (Color) {64 + (rand() % 64),64 + (rand() % 64),64+ (rand() % 64),255},
         .hit = 10
 
       };
@@ -109,107 +110,156 @@ main(void)
   SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
                                   //--------------------------------------------------------------------------------------
 
+  GameState state = START;
                                   // Main game loop
   while (!WindowShouldClose())    // Detect window close button or ESC key
   {
-    // Update
-    //----------------------------------------------------------------------------------
-    // TODO: Update your variables here
-    //----------------------------------------------------------------------------------
-    switch(GetKeyPressed()) {
-      case(KEY_F):
-        ToggleFullscreen();
+
+    switch(state) {
+      case(START):
+        if(GetKeyPressed() == KEY_ENTER)
+          state = GAME;
+
         break;
-      case(KEY_LEFT):
-        if(rec.x - 10 >= 0) {
-          rec.x -= rect_speed;
+      case(GAME):
+        prev = ball_pos;
+        ball_pos = Vector2Add(ball_pos,ball_vel);
+
+        switch(GetKeyPressed()) {
+          case(KEY_F):
+            ToggleFullscreen();
+            break;
+
+          case(KEY_P):
+            state = PAUSE;
+            break;
         }
-        break;
-      case(KEY_RIGHT):
-        if(rec.x+rec.width + 10 <= screen_w) {
-          rec.x += rect_speed;
+
+
+
+        if(IsKeyDown(KEY_RIGHT)) {
+          if(rec.x+rec.width <= screen_w) {
+            rec.x += rect_speed;
+          }
         }
-        break;
-    }
-    if(IsKeyDown(KEY_RIGHT)) {
-      if(rec.x+rec.width + 10 <= screen_w) {
-        rec.x += rect_speed;
-      }
-    }
 
-    if(IsKeyDown(KEY_LEFT)) {
-      if(rec.x - 10 >= 0) {
-        rec.x -= rect_speed;
-      }
-    }
-
-    int hit = 0;
-    int bounce = 1;
-    for(size_t dy = 0;dy < brick_count_y; ++dy) {
-      for(size_t dx = 0; dx < brick_count_x; ++dx) {
-        Brick* brick = bricks[dy][dx];
-        if(CheckCollisionCircleRec(ball_pos,radius,brick->brick)&&brick->should_exist) {
-          --brick->hit;
-          if(brick->hit == 0)
-            brick->should_exist = 0;
-          float left = brick->brick.x;
-          float right = left + brick->brick.width;
-          float top = brick->brick.y;
-          float bottom = top + brick->brick.height;
-
-          if(prev.x <= left) {
-            ball_vel.x *= -1;
-            ball_pos.x = left - radius;
+        if(IsKeyDown(KEY_LEFT)) {
+          if(rec.x - 10 >= 0) {
+            rec.x -= rect_speed;
           }
-          else if(prev.x >= right) {
-            ball_vel.x *= -1;
-            ball_pos.x = right + radius;
-          }
-          if(prev.y <= top) {
-            ball_vel.y *= -1;
-            ball_pos.y = top - radius;
-          }
-          else if(prev.y >= bottom) {
-            ball_vel.y *= -1;
-            ball_pos.y = bottom + radius;
-          }
-          hit = 1;
         }
-        if(hit)
-          break;
-      }
-      if(hit)
+
+        int hit = 0;
+        int bounce = 1;
+        for(size_t dy = 0;dy < brick_count_y; ++dy) {
+          for(size_t dx = 0; dx < brick_count_x; ++dx) {
+            Brick* brick = bricks[dy][dx];
+            if(CheckCollisionCircleRec(ball_pos,radius,brick->brick)&&brick->should_exist) {
+              --brick->hit;
+              if(brick->hit == 0)
+                brick->should_exist = 0;
+              float left = brick->brick.x;
+              float right = left + brick->brick.width;
+              float top = brick->brick.y;
+              float bottom = top + brick->brick.height;
+
+              if(prev.x <= left) {
+                ball_vel.x *= -1;
+                ball_pos.x = left - radius;
+              }
+              else if(prev.x >= right) {
+                ball_vel.x *= -1;
+                ball_pos.x = right + radius;
+              }
+              if(prev.y <= top) {
+                ball_vel.y *= -1;
+                ball_pos.y = top - radius;
+              }
+              else if(prev.y >= bottom) {
+                ball_vel.y *= -1;
+                ball_pos.y = bottom + radius;
+              }
+              hit = 1;
+            }
+            if(hit)
+              break;
+          }
+          if(hit)
+            break;
+        }
+
+        if(ball_pos.x >= screen_w - radius || ball_pos.x <= radius) {
+          ball_vel.x *=-1;
+        }
+
+        if(ball_pos.y <= radius){
+          ball_vel.y *= -1;
+        }
+
+        if(ball_pos.y>= screen_h - radius) {
+          state = LOSE;
+        }
+
+
+        if(CheckCollisionCircleRec(ball_pos,radius,rec)) {
+          float vel_mag = Vector2Length(ball_vel);
+          float relative_hit_pos = (((ball_pos.x - rec.x)/rec.width) * 2)-1; 
+          float angle_modifier = relative_hit_pos * PI/4;
+          float angle = -PI/2 + angle_modifier;
+
+          ball_vel.x = vel_mag * cos(angle);
+          ball_vel.y = vel_mag * sin(angle);
+
+
+        }
+
         break;
-    }
+      case(PAUSE):
 
-    if(ball_pos.x >= screen_w - radius || ball_pos.x <= radius) {
-      ball_vel.x *=-1;
-    }
+        if(GetKeyPressed() == KEY_ENTER)
+          state = GAME;
+        break;
+      case(LOSE):
 
-    if(ball_pos.y>= screen_h - radius || ball_pos.y <= radius){
-      ball_vel.y *= -1;
-    }
+        break;
+      case(WIN):
 
-
-
-
-    if(CheckCollisionCircleRec(ball_pos,radius,rec)) {
-      float vel_mag = Vector2Length(ball_vel);
-      float relative_hit_pos = (((ball_pos.x - rec.x)/rec.width) * 2)-1; 
-      float angle_modifier = relative_hit_pos * PI/4;
-      float angle = -PI/2 + angle_modifier;
-
-      ball_vel.x = vel_mag * cos(angle);
-      ball_vel.y = vel_mag * sin(angle);
-
-
+        break;
     }
 
 
     // Draw
     //----------------------------------------------------------------------------------
     BeginDrawing();
+
     ClearBackground(BG);
+
+    switch(state) {
+      case(START):
+
+        DrawText("Mega Epic Game!",screen_w/4,screen_h/2,80,WHITE);
+        DrawText("Press Enter to begin gaming..",screen_w/4 - screen_w/8,screen_h/2 + screen_h/8,60,WHITE);
+
+
+        break;
+      case(GAME):
+
+        break;
+      case(PAUSE):
+
+        DrawText("Paused",screen_w/4,screen_h/2,80,WHITE);
+        DrawText("Press Enter to continue gaming..",screen_w/4 - screen_w/8,screen_h/2 + screen_h/8,60,WHITE);
+
+        break;
+      case(LOSE):
+        DrawText("You freakin lose!",screen_w/4,screen_h/2,80,WHITE);
+        DrawText("Press Escape stop gaming..",screen_w/4 - screen_w/8,screen_h/2 + screen_h/8,60,RED);
+        break;
+      case(WIN):
+
+        break;
+    }
+
 
     DrawCircleV(ball_pos,radius,BALL_RED);
     DrawRectangleRec(rec,WHITE);
@@ -229,11 +279,9 @@ main(void)
     }
 
 
+
+
     EndDrawing();
-
-    prev = ball_pos;
-    ball_pos = Vector2Add(ball_pos,ball_vel);
-
     /*
        if(CheckCollisionCircleRec(ball_pos,radius,brick.brick)) {
        brick.should_exist = 0;
