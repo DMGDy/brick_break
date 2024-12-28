@@ -25,6 +25,7 @@
 
 #define BG (Color) {0x09, 0x0a , 0x13, 255}
 #define BALL_RED (Color) {0xDC,0x14,0x3c,0xFF}
+#define COUNT 50
 
 typedef struct {
   Rectangle brick;
@@ -38,8 +39,8 @@ typedef enum {START,GAME,PAUSE,LOSE,WIN}GameState;
 const int screen_w = 1200;
 const int screen_h = 800;
 
-const int radius = 10;
-const int rect_w = radius*16;
+const int radius = 5;
+const int rect_w = 2*radius*16;
 
 
 int
@@ -49,24 +50,25 @@ main(void)
   InitWindow(screen_w,screen_h,"Epic Game");
   srand(time(NULL));
 
+  int brick_side_len = (screen_w/COUNT);
 
   // brick size horizontially bound by max 50 and vertically by screen height
-  size_t brick_count_x = 50;
-  size_t brick_count_y = (int)(screen_h )/50;
+  size_t brick_count_x = screen_w/brick_side_len;
+  size_t brick_count_y = (screen_h*0.45)/brick_side_len;
 
 
   //Vector2 scale = GetWindowScaleDPI();
 
   Vector2 ball_vel = {
     .x = 10,
-    .y = 10
+    .y = -10
   };
 
   Rectangle rec = {
     .x = (float)screen_w/2,
     .y = screen_h - 100,
     .width = rect_w,
-    .height = radius
+    .height = 10
   };
 
   Vector2 ball_pos = {
@@ -75,10 +77,10 @@ main(void)
   };
 
 
-  float brick_side_len = ((float)screen_w/50);
 
   Brick*** bricks = realloc(NULL, brick_count_y * sizeof(Brick**)); 
 
+init:
   for(size_t dy = 0; dy < brick_count_y; ++dy){
     bricks[dy] = realloc(NULL,brick_count_x * sizeof(Brick*));
     for(size_t dx = 0; dx < brick_count_x; ++dx) {
@@ -87,9 +89,9 @@ main(void)
       *brick = (Brick){
 
         .brick = {
-          .x = (brick_side_len*2) *dx,
+          .x = brick_side_len *dx,
           .y = brick_side_len *dy,
-          .width = brick_side_len * 2,
+          .width = brick_side_len,
           .height = brick_side_len
         },
 
@@ -108,9 +110,7 @@ main(void)
   Vector2 prev;
 
   SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
-                                  //--------------------------------------------------------------------------------------
-
-  GameState state = START;
+GameState state = START;
                                   // Main game loop
   while (!WindowShouldClose())    // Detect window close button or ESC key
   {
@@ -118,6 +118,9 @@ main(void)
     switch(state) {
       case(START):
         if(GetKeyPressed() == KEY_ENTER)
+          state = GAME;
+
+        if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
           state = GAME;
 
         break;
@@ -135,13 +138,13 @@ main(void)
             break;
         }
 
-
-
         if(IsKeyDown(KEY_RIGHT)) {
           if(rec.x+rec.width <= screen_w) {
             rec.x += rect_speed;
           }
         }
+
+        rec.x = GetMouseX();
 
         if(IsKeyDown(KEY_LEFT)) {
           if(rec.x - 10 >= 0) {
@@ -149,8 +152,6 @@ main(void)
           }
         }
 
-        int hit = 0;
-        int bounce = 1;
         for(size_t dy = 0;dy < brick_count_y; ++dy) {
           for(size_t dx = 0; dx < brick_count_x; ++dx) {
             Brick* brick = bricks[dy][dx];
@@ -165,31 +166,34 @@ main(void)
 
               if(prev.x <= left) {
                 ball_vel.x *= -1;
-                ball_pos.x = left - radius;
+                ball_pos.x -=  (radius+ball_vel.x);
               }
+
               else if(prev.x >= right) {
                 ball_vel.x *= -1;
-                ball_pos.x = right + radius;
+                ball_pos.x +=  (radius+ball_vel.x);
               }
-              if(prev.y <= top) {
+
+              else if(prev.y <= top) {
                 ball_vel.y *= -1;
-                ball_pos.y = top - radius;
+                ball_pos.y -=  (radius+ball_vel.y);
               }
+
               else if(prev.y >= bottom) {
                 ball_vel.y *= -1;
-                ball_pos.y = bottom + radius;
+                ball_pos.y += (radius+ball_vel.y);
               }
-              hit = 1;
             }
-            if(hit)
-              break;
           }
-          if(hit)
-            break;
         }
 
-        if(ball_pos.x >= screen_w - radius || ball_pos.x <= radius) {
+        if(ball_pos.x >= screen_w - radius) {
           ball_vel.x *=-1;
+          ball_pos.x = screen_w - radius;
+        }
+        else if(ball_pos.x <= radius) {
+          ball_vel.x *=-1;
+          ball_pos.x = radius;
         }
 
         if(ball_pos.y <= radius){
@@ -200,6 +204,9 @@ main(void)
           state = LOSE;
         }
 
+        if(ball_vel.x == 0) {
+          ball_vel.x += 0.1;
+        } 
 
         if(CheckCollisionCircleRec(ball_pos,radius,rec)) {
           float vel_mag = Vector2Length(ball_vel);
@@ -210,7 +217,6 @@ main(void)
           ball_vel.x = vel_mag * cos(angle);
           ball_vel.y = vel_mag * sin(angle);
 
-
         }
 
         break;
@@ -220,6 +226,15 @@ main(void)
           state = GAME;
         break;
       case(LOSE):
+        if(GetKeyPressed() == KEY_R) {
+
+          ball_pos.x = rec.x + rec.width/2;
+          ball_pos.y = rec.y - radius;
+          ball_vel.x = 10;
+
+          ball_vel.y = 10;
+          goto init;
+        }
 
         break;
       case(WIN):
@@ -234,33 +249,6 @@ main(void)
 
     ClearBackground(BG);
 
-    switch(state) {
-      case(START):
-
-        DrawText("Mega Epic Game!",screen_w/4,screen_h/2,80,WHITE);
-        DrawText("Press Enter to begin gaming..",screen_w/4 - screen_w/8,screen_h/2 + screen_h/8,60,WHITE);
-
-
-        break;
-      case(GAME):
-
-        break;
-      case(PAUSE):
-
-        DrawText("Paused",screen_w/4,screen_h/2,80,WHITE);
-        DrawText("Press Enter to continue gaming..",screen_w/4 - screen_w/8,screen_h/2 + screen_h/8,60,WHITE);
-
-        break;
-      case(LOSE):
-        DrawText("You freakin lose!",screen_w/4,screen_h/2,80,WHITE);
-        DrawText("Press Escape stop gaming..",screen_w/4 - screen_w/8,screen_h/2 + screen_h/8,60,RED);
-        break;
-      case(WIN):
-
-        break;
-    }
-
-
     DrawCircleV(ball_pos,radius,BALL_RED);
     DrawRectangleRec(rec,WHITE);
 
@@ -273,10 +261,38 @@ main(void)
           DrawText(TextFormat("%d",brick->hit),
               brick->brick.x + (brick->brick.width/4),
               brick->brick.y + (brick->brick.height/8),
-              20,WHITE);
+              COUNT/8,WHITE);
         }
       }
     }
+    switch(state) {
+      case(START):
+        DrawText("Mega Epic Game!",screen_w/8,screen_h/2,80,WHITE);
+        DrawText("Press Enter or left-click to begin gaming..",screen_w/8,screen_h/2 + screen_h/8,40,WHITE);
+        DrawText("Use Mouse to move, 'P' to pause",screen_w/4 - screen_w/8,screen_h/2 + screen_h/4,30,WHITE);
+        break;
+
+      case(GAME):
+
+
+        break;
+      case(PAUSE):
+        DrawText("Paused",screen_w/4,screen_h/2,80,WHITE);
+        DrawText("Press Enter to continue gaming..",screen_w/4 - screen_w/8,screen_h/2 + screen_h/8,40,WHITE);
+        break;
+
+      case(LOSE):
+        DrawText("You freakin lose noob!",screen_w/8,screen_h/2,80,WHITE);
+        DrawText("Press Escape stop gaming..",screen_w/8 ,screen_h/2 + screen_h/8,30,RED);
+        DrawText("Or to try again press 'R'(Only TRUE gamers choose this one)",screen_w/8,screen_h/2 + screen_h/4,30,RED);
+        break;
+
+      case(WIN):
+
+        break;
+    }
+
+
 
 
 
